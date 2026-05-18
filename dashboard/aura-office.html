@@ -579,6 +579,38 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 
 #toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--bg4);border:1px solid var(--gold-d);border-radius:6px;padding:6px 14px;font-size:10px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:200;white-space:nowrap}
 #toast.show{opacity:1}
+
+/* ── BRIDGE CONFIG MODAL ── */
+#bridge-cfg{
+  position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:500;
+  display:none;align-items:center;justify-content:center;
+}
+#bridge-cfg.open{display:flex}
+#bridge-cfg-box{
+  background:var(--bg2);border:1px solid var(--border2);border-radius:10px;
+  padding:24px 28px;width:420px;max-width:95vw;
+}
+#bridge-cfg-box h2{font-size:14px;color:var(--gold);margin-bottom:6px}
+#bridge-cfg-box p{font-size:10px;color:var(--text-d);margin-bottom:16px;line-height:1.5}
+.cfg-row{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.cfg-label{font-size:9px;color:var(--text-m);text-transform:uppercase;letter-spacing:1px}
+.cfg-input{
+  background:var(--bg4);border:1px solid var(--border2);border-radius:4px;
+  padding:7px 10px;color:var(--text);font-family:inherit;font-size:11px;outline:none;
+}
+.cfg-input:focus{border-color:var(--gold-d)}
+.cfg-btns{display:flex;gap:8px;margin-top:6px}
+.cfg-btn{
+  flex:1;padding:8px;border-radius:5px;font-size:10px;font-family:inherit;
+  cursor:pointer;border:1px solid var(--border2);transition:all .15s;
+}
+.cfg-btn.primary{background:var(--gold-d);border-color:var(--gold-d);color:white}
+.cfg-btn.primary:hover{background:var(--gold)}
+.cfg-btn.secondary{background:var(--bg3);color:var(--text-m)}
+.cfg-btn.secondary:hover{border-color:var(--gold-d);color:var(--text)}
+.cfg-status{font-size:9px;margin-top:10px;padding:5px 8px;border-radius:4px;display:none}
+.cfg-status.ok{display:block;background:rgba(76,175,130,.12);border:1px solid rgba(76,175,130,.3);color:var(--green)}
+.cfg-status.err{display:block;background:rgba(224,82,82,.12);border:1px solid rgba(224,82,82,.3);color:var(--red)}
 </style>
 </head>
 <body>
@@ -588,7 +620,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
   <div class="logo">AURA<span> DECOR  HQ  v3</span></div>
   <div class="pill"><span class="dot"></span><span id="pill-agents">6 agentes</span></div>
   <div class="pill"><span class="dot gold" id="llm-dot"></span><span id="pill-llm">llama3.2</span></div>
-  <div class="pill"><span class="dot" id="bridge-dot"></span>bridge:8001</div>
+  <div class="pill" onclick="openBridgeCfg()" style="cursor:pointer" title="Clique para configurar URL da Bridge"><span class="dot" id="bridge-dot"></span><span id="bridge-label">bridge:8001</span> ⚙️</div>
   <div id="topbar-right">
     <span style="font-size:9px;color:var(--gold);background:rgba(180,148,90,.1);border:1px solid rgba(180,148,90,.3);border-radius:10px;padding:2px 8px">⚑ fase: lançamento</span>
     <button onclick="openDocs()" style="font-size:9px;color:var(--purple);background:rgba(155,127,212,.1);border:1px solid rgba(155,127,212,.3);border-radius:10px;padding:3px 10px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:4px" onmouseover="this.style.background='rgba(155,127,212,.22)'" onmouseout="this.style.background='rgba(155,127,212,.1)'">📁 Documentos</button>
@@ -865,11 +897,80 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 
 <div id="toast"></div>
 
+<!-- BRIDGE CONFIG -->
+<div id="bridge-cfg">
+  <div id="bridge-cfg-box">
+    <h2>⚙️ Configurar Bridge</h2>
+    <p>O dashboard usa a Bridge API local para executar os agentes com llama3.2.<br>
+    Se estiver acessando pelo Vercel, informe o IP da sua máquina onde a bridge roda.</p>
+    <div class="cfg-row">
+      <div class="cfg-label">URL da Bridge (ex: http://192.168.1.10:8001)</div>
+      <input class="cfg-input" id="cfg-bridge-input" type="text" placeholder="http://localhost:8001" spellcheck="false"/>
+    </div>
+    <div id="cfg-test-status" class="cfg-status"></div>
+    <div class="cfg-btns">
+      <button class="cfg-btn secondary" onclick="bridgeCfgTest()">🔌 Testar conexão</button>
+      <button class="cfg-btn primary" onclick="bridgeCfgSave()">✓ Salvar e conectar</button>
+    </div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-size:9px;color:var(--text-d)">
+      Para iniciar a bridge: <code style="color:var(--gold)">python -m uvicorn bridge.obsidian_bridge:app --host 0.0.0.0 --port 8001</code>
+    </div>
+  </div>
+</div>
+
 <script>
 // ══════════════════════════════════════════════════════════
-// CONFIG
+// CONFIG — BRIDGE URL (configurável, persiste em localStorage)
 // ══════════════════════════════════════════════════════════
-const BRIDGE = 'http://localhost:8001';
+let BRIDGE = localStorage.getItem('aura_bridge_url') || 'http://localhost:8001';
+// Atualiza label inicial
+document.addEventListener('DOMContentLoaded', () => {
+  const lbl = document.getElementById('bridge-label');
+  if (lbl) lbl.textContent = BRIDGE.replace('http://','').replace('https://','');
+});
+
+function openBridgeCfg() {
+  document.getElementById('cfg-bridge-input').value = BRIDGE;
+  document.getElementById('cfg-test-status').className = 'cfg-status';
+  document.getElementById('bridge-cfg').classList.add('open');
+}
+function closeBridgeCfg() {
+  document.getElementById('bridge-cfg').classList.remove('open');
+}
+async function bridgeCfgTest() {
+  const url = document.getElementById('cfg-bridge-input').value.trim().replace(/\/$/, '');
+  const s = document.getElementById('cfg-test-status');
+  s.className = 'cfg-status'; s.textContent = 'Testando...'; s.style.display='block';
+  try {
+    const r = await fetch(`${url}/health`, {signal: AbortSignal.timeout(4000)});
+    const d = await r.json();
+    s.className = 'cfg-status ok';
+    s.textContent = `✓ Conectado — ${d.agents} agentes | fase: ${d.phase} | ${d.ts}`;
+  } catch(e) {
+    s.className = 'cfg-status err';
+    s.textContent = `✗ Falha: ${e.message}. Verifique se a bridge está rodando.`;
+  }
+}
+function bridgeCfgSave() {
+  const url = document.getElementById('cfg-bridge-input').value.trim().replace(/\/$/, '');
+  if (!url) return;
+  BRIDGE = url;
+  localStorage.setItem('aura_bridge_url', url);
+  // Atualiza label na topbar
+  const lbl = document.getElementById('bridge-label');
+  if (lbl) lbl.textContent = url.replace('http://','').replace('https://','');
+  closeBridgeCfg();
+  // Reconecta
+  document.getElementById('bridge-dot').style.background = 'var(--text-d)';
+  connectSSE();
+  fetch(`${BRIDGE}/health`).then(r=>r.json()).then(d => {
+    document.getElementById('bridge-dot').style.background = 'var(--green)';
+    showToast(`✓ Bridge conectada: ${url}`);
+  }).catch(() => showToast('⚠ Bridge ainda offline'));
+}
+document.getElementById('bridge-cfg').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('bridge-cfg')) closeBridgeCfg();
+});
 
 const AGENTS = {
   ive:  {name:'Ive',  emoji:'👩‍💼', role:'CEO & Gerente Geral',   color:'var(--gold)',   left:'16%', top:'18%'},
