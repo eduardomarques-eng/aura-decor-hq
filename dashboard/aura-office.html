@@ -920,13 +920,36 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 
 <script>
 // ══════════════════════════════════════════════════════════
-// CONFIG — BRIDGE URL (configurável, persiste em localStorage)
+// CONFIG — BRIDGE / RAILWAY (dual-mode)
 // ══════════════════════════════════════════════════════════
-let BRIDGE = localStorage.getItem('aura_bridge_url') || 'http://localhost:8001';
+const IS_PROD = !['localhost','127.0.0.1',''].includes(location.hostname);
+const RAILWAY = 'https://web-production-f1cb5.up.railway.app';
+let BRIDGE = IS_PROD ? RAILWAY : (localStorage.getItem('aura_bridge_url') || 'http://localhost:8001');
+
+// Railway WebSocket — live agent feed (only in prod)
+if (IS_PROD) {
+  const _ws = new WebSocket(RAILWAY.replace('https://','wss://') + '/ws');
+  _ws.onmessage = (e) => {
+    try {
+      const d = JSON.parse(e.data);
+      if (d.type === 'agent_activity' || d.agent_id) {
+        const agId = (d.agent_id||'').toLowerCase();
+        const agEl = document.getElementById(`desk-${agId}`);
+        if (agEl) {
+          const av = agEl.querySelector('.avatar');
+          if (av) { av.className = 'avatar busy'; setTimeout(()=>{ av.className='avatar online'; }, 4000); }
+        }
+        if (d.message) appendLine(`🔴 ${d.agent_id||'Agent'}: ${d.message}`, 'system');
+      }
+    } catch(_) {}
+  };
+  _ws.onerror = () => {};
+}
+
 // Atualiza label inicial
 document.addEventListener('DOMContentLoaded', () => {
   const lbl = document.getElementById('bridge-label');
-  if (lbl) lbl.textContent = BRIDGE.replace('http://','').replace('https://','');
+  if (lbl) lbl.textContent = IS_PROD ? 'railway.app' : BRIDGE.replace('http://','').replace('https://','');
 });
 
 function openBridgeCfg() {
@@ -1471,23 +1494,21 @@ function ideQuick(cmd) {
 
 function ideExecute(cmd) {
   if (_ideStreaming) return;
+  if (IS_PROD) { ideExecuteRailway(cmd); return; }
   _ideStreaming = true;
 
   const out = document.getElementById('ide-term-output');
   const btn = document.getElementById('ide-send-btn');
   btn.disabled = true; btn.classList.add('loading'); btn.textContent = '⏳ ...';
 
-  // Linha do usuário
   const uLine = document.createElement('div');
   uLine.className = 'it-line user-input';
   uLine.textContent = cmd;
   out.appendChild(uLine);
   out.scrollTop = out.scrollHeight;
 
-  // Log de roteamento
   ideAppendActionLog(`→ Roteando comando para agente...`, 'action');
 
-  // SSE streaming
   const url = `${BRIDGE}/terminal/stream?cmd=${encodeURIComponent(cmd)}`;
   const es = new EventSource(url);
   let respDiv = null;
@@ -1498,7 +1519,6 @@ function ideExecute(cmd) {
     const data = JSON.parse(e.data);
 
     if (data.type === 'agent') {
-      // Remove log de roteamento, mostra quem vai responder
       ideRemoveThinking();
       const prevLog = out.querySelector('.it-line.action-log:last-child');
       if (prevLog) prevLog.remove();
@@ -1515,7 +1535,6 @@ function ideExecute(cmd) {
       respDiv.appendChild(cursorEl);
       out.appendChild(respDiv);
 
-      // Atualiza pill
       const pill = document.getElementById('ide-pill');
       pill.className = 'ide-status-pill busy';
       pill.innerHTML = `<div class="dot"></div> executando`;
@@ -1537,26 +1556,18 @@ function ideExecute(cmd) {
       _ideStreaming = false;
       btn.disabled = false; btn.classList.remove('loading'); btn.textContent = '▶ Enviar';
 
-      // Salva na memória local
       if (!_ideMemories[_ideAgent]) _ideMemories[_ideAgent] = [];
-      _ideMemories[_ideAgent].unshift({
-        ts: new Date().toLocaleTimeString('pt-BR'),
-        text: `> ${cmd}\n\n${fullText.trim()}`
-      });
+      _ideMemories[_ideAgent].unshift({ ts: new Date().toLocaleTimeString('pt-BR'), text: `> ${cmd}\n\n${fullText.trim()}` });
       _ideMemories[_ideAgent] = _ideMemories[_ideAgent].slice(0,20);
       ideRenderMemory(_ideAgent);
 
       ideAppendActionLog(`✓ Resposta salva no vault Obsidian`, 'success');
-
-      // Atualiza pill
       const pill = document.getElementById('ide-pill');
       pill.className = 'ide-status-pill';
       pill.innerHTML = `<div class="dot"></div> online`;
 
-      // Incrementa stats
       const sv = document.getElementById('sv-tasks');
       if (sv) sv.textContent = parseInt(sv.textContent||0)+1;
-
       document.getElementById('ide-input').focus();
     }
   };
@@ -1568,6 +1579,103 @@ function ideExecute(cmd) {
     ideAppendActionLog('⚠ Bridge offline — rode: python bridge/obsidian_bridge.py', 'error');
     if (cursorEl) cursorEl.remove();
   };
+}
+
+async function ideExecuteRailway(cmd) {
+  _ideStreaming = true;
+  const out = document.getElementById('ide-term-output');
+  const btn = document.getElementById('ide-send-btn');
+  btn.disabled = true; btn.classList.add('loading'); btn.textContent = '⏳ ...';
+
+  const uLine = document.createElement('div');
+  uLine.className = 'it-line user-input';
+  uLine.textContent = cmd;
+  out.appendChild(uLine);
+  out.scrollTop = out.scrollHeight;
+
+  ideAppendActionLog(`→ Railway: enviando para agentes...`, 'action');
+
+  const pill = document.getElementById('ide-pill');
+  pill.className = 'ide-status-pill busy';
+  pill.innerHTML = `<div class="dot"></div> executando`;
+
+  try {
+    const res = await fetch(`${RAILWAY}/chat`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ message: cmd, history: [] })
+    });
+    const data = await res.json();
+
+    const prevLog = out.querySelector('.it-line.action-log:last-child');
+    if (prevLog) prevLog.remove();
+
+    // Dispatched agents header
+    const dispatched = data.dispatched || [];
+    const hdr = document.createElement('div');
+    hdr.className = 'it-line agent-hdr';
+    const agentLabel = dispatched.length ? dispatched.map(d=>d.agent||d).join(', ') : 'IVE';
+    hdr.innerHTML = `🤖 <strong>${agentLabel}</strong> <div class="hdr-line"></div>`;
+    out.appendChild(hdr);
+
+    // Animate typing
+    const respDiv = document.createElement('div');
+    respDiv.className = 'it-line response';
+    const cursorEl = document.createElement('span');
+    cursorEl.className = 'it-cursor';
+    respDiv.appendChild(cursorEl);
+    out.appendChild(respDiv);
+
+    const reply = data.reply || '(sem resposta)';
+    let i = 0;
+    const speed = Math.max(8, Math.min(30, Math.round(reply.length / 80)));
+    const typeInterval = setInterval(() => {
+      if (i < reply.length) {
+        respDiv.insertBefore(document.createTextNode(reply[i]), cursorEl);
+        out.scrollTop = out.scrollHeight;
+        i++;
+      } else {
+        clearInterval(typeInterval);
+        cursorEl.remove();
+        _ideStreaming = false;
+        btn.disabled = false; btn.classList.remove('loading'); btn.textContent = '▶ Enviar';
+
+        if (!_ideMemories[_ideAgent]) _ideMemories[_ideAgent] = [];
+        _ideMemories[_ideAgent].unshift({ ts: new Date().toLocaleTimeString('pt-BR'), text: `> ${cmd}\n\n${reply.trim()}` });
+        _ideMemories[_ideAgent] = _ideMemories[_ideAgent].slice(0,20);
+        ideRenderMemory(_ideAgent);
+
+        if (data.choices && data.choices.length) {
+          const choicesDiv = document.createElement('div');
+          choicesDiv.className = 'it-line';
+          choicesDiv.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;margin-top:4px';
+          data.choices.forEach(c => {
+            const btn2 = document.createElement('button');
+            btn2.className = 'ide-action-btn';
+            btn2.textContent = c.label || c.key;
+            btn2.onclick = () => ideQuick(c.label || c.key);
+            choicesDiv.appendChild(btn2);
+          });
+          out.appendChild(choicesDiv);
+        }
+
+        ideAppendActionLog(`✓ ${dispatched.length ? dispatched.length+' agente(s) despachado(s)' : 'Resposta recebida'}`, 'success');
+        pill.className = 'ide-status-pill';
+        pill.innerHTML = `<div class="dot"></div> online`;
+
+        const sv = document.getElementById('sv-tasks');
+        if (sv) sv.textContent = parseInt(sv.textContent||0)+1;
+        document.getElementById('ide-input').focus();
+      }
+    }, speed);
+
+  } catch(err) {
+    _ideStreaming = false;
+    btn.disabled = false; btn.classList.remove('loading'); btn.textContent = '▶ Enviar';
+    ideAppendActionLog(`⚠ Railway offline: ${err.message}`, 'error');
+    pill.className = 'ide-status-pill';
+    pill.innerHTML = `<div class="dot"></div> online`;
+  }
 }
 
 function ideRenderMemory(agentId) {
@@ -1638,6 +1746,10 @@ function closeDocs() {
 
 async function docsLoadList() {
   const listEl = document.getElementById('docs-list');
+  if (IS_PROD) {
+    listEl.innerHTML = `<div class="docs-empty"><div class="docs-empty-ico">🔒</div><div class="docs-empty-txt">Vault local apenas</div><div class="docs-empty-hint">Acesse localmente (localhost:5500) para navegar documentos Obsidian</div></div>`;
+    return;
+  }
   listEl.innerHTML = `<div class="docs-empty"><div class="docs-empty-ico" style="font-size:24px">⏳</div><div class="docs-empty-txt">Carregando...</div></div>`;
   try {
     const r = await fetch(`${BRIDGE}/vault/documents`);
@@ -1874,11 +1986,20 @@ function showToast(msg) {
 
 // Initial terminal welcome
 setTimeout(() => {
-  fetch(`${BRIDGE}/health`).then(r=>r.json()).then(d => {
-    appendLine(`✓ Bridge conectado — ${d.agents} agentes | fase: ${d.phase}`, 'system');
+  const healthUrl = IS_PROD ? `${RAILWAY}/health` : `${BRIDGE}/health`;
+  fetch(healthUrl).then(r=>r.json()).then(d => {
+    if (IS_PROD) {
+      appendLine(`✓ Railway conectado — ${d.agents||11} agentes | ${d.status||'online'}`, 'system');
+    } else {
+      appendLine(`✓ Bridge conectado — ${d.agents} agentes | fase: ${d.phase}`, 'system');
+    }
     document.getElementById('bridge-dot').style.background = 'var(--green)';
   }).catch(() => {
-    appendLine('⚠  Bridge offline — iniciando modo local. Execute: python bridge/obsidian_bridge.py', 'error');
+    if (IS_PROD) {
+      appendLine('⚠  Railway offline — verifique web-production-f1cb5.up.railway.app', 'error');
+    } else {
+      appendLine('⚠  Bridge offline — iniciando modo local. Execute: python bridge/obsidian_bridge.py', 'error');
+    }
   });
 }, 800);
 </script>
