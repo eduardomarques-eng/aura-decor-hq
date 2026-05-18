@@ -2,18 +2,22 @@
   "version": 2,
   "name": "aura-decor-hq",
   "builds": [
-    { "src": "dashboard/aura-office.html", "use": "@vercel/static" }
+    { "src": "index.html", "use": "@vercel/static" },
+    { "src": "dashboard/**", "use": "@vercel/static" }
   ],
   "routes": [
-    { "src": "/", "dest": "/dashboard/aura-office.html" },
-    { "src": "/(.*)", "dest": "/dashboard/$1" }
+    { "src": "/", "dest": "/index.html" },
+    { "src": "/dashboard/(.*)", "dest": "/dashboard/$1" },
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ],
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
         { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Cache-Control", "value": "no-store" }
+        { "key": "Cache-Control", "value": "no-store, no-cache" },
+        { "key": "Access-Control-Allow-Origin", "value": "*" }
       ]
     }
   ]
