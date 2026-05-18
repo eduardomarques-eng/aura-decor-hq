@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Aura Refúgio — Ativar Agentes</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0E0C0A; color: #F0EAE0; font-family: 'Cascadia Code', monospace; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+.card { background: #17140F; border: 1px solid #3A3228; border-radius: 12px; padding: 32px 36px; max-width: 520px; width: 95vw; }
+h1 { color: #B4945A; font-size: 16px; margin-bottom: 6px; }
+p { color: #6A5E52; font-size: 11px; line-height: 1.6; margin-bottom: 18px; }
+.status { background: #0E0C0A; border: 1px solid #2E2820; border-radius: 8px; padding: 14px; font-size: 11px; color: #A89880; min-height: 54px; margin-bottom: 16px; white-space: pre-wrap; word-break: break-all; }
+.status.ok { color: #4CAF82; border-color: #4CAF82; }
+.status.err { color: #E05252; border-color: #E05252; }
+button { background: #B4945A; border: none; border-radius: 8px; padding: 10px 24px; color: #0E0C0A; font-weight: bold; font-size: 13px; cursor: pointer; width: 100%; margin-bottom: 8px; }
+button:disabled { background: #3A3228; color: #6A5E52; cursor: not-allowed; }
+button.sec { background: transparent; border: 1px solid #3A3228; color: #A89880; }
+.token-box { display: none; }
+.token-box input { width: 100%; background: #0E0C0A; border: 1px solid #4CAF82; border-radius: 6px; padding: 8px 10px; color: #4CAF82; font-family: monospace; font-size: 10px; margin-bottom: 10px; }
+label { font-size: 9px; color: #A89880; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 4px; }
+.badge { display: inline-block; background: rgba(76,175,130,.15); border: 1px solid rgba(76,175,130,.3); border-radius: 10px; padding: 2px 8px; font-size: 9px; color: #4CAF82; margin-right: 4px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>🔑 Ativar Agentes — Aura Refúgio</h1>
+  <p>Clique em <strong style="color:#D4AF72">Autorizar com Facebook</strong> para conectar os agentes à Página Aura Refúgio.<br>
+  Permissões: <span class="badge">pages_manage_posts</span><span class="badge">pages_read_engagement</span><span class="badge">pages_manage_metadata</span><span class="badge">pages_messaging</span></p>
+
+  <div id="status" class="status">⏳ Carregando SDK do Facebook...</div>
+
+  <button id="btn-login" onclick="fbLogin()" disabled>🔐 Autorizar com Facebook</button>
+  <button class="sec" onclick="window.close()">Cancelar</button>
+
+  <div id="token-section" class="token-box">
+    <label>Token gerado</label>
+    <input id="token-val" readonly>
+    <button onclick="sendToBridge()">⚡ Enviar para Bridge — Ativar Agentes</button>
+    <div id="bridge-status" class="status" style="display:none"></div>
+  </div>
+</div>
+
+<script>
+const APP_ID = '2073471413233500';
+const PAGE_ID = '61590017552373';
+const BRIDGE  = localStorage.getItem('aura_bridge_url') || 'http://localhost:8001';
+
+// Carrega SDK do Facebook
+window.fbAsyncInit = function() {
+  FB.init({ appId: APP_ID, version: 'v20.0', xfbml: false, cookie: true });
+  FB.getLoginStatus(resp => {
+    if (resp.status === 'connected') {
+      document.getElementById('status').textContent = '✓ Já autenticado — buscando token da página...';
+      document.getElementById('status').className = 'status ok';
+      fetchPageToken(resp.authResponse.accessToken);
+    } else {
+      document.getElementById('status').textContent = 'Clique em "Autorizar com Facebook" para continuar.';
+      document.getElementById('btn-login').disabled = false;
+    }
+  });
+};
+
+(function(d, s, id) {
+  var js, fjs = d.getElementsByTagName(s)[0];
+  if (d.getElementById(id)) return;
+  js = d.createElement(s); js.id = id;
+  js.src = 'https://connect.facebook.net/pt_BR/sdk.js';
+  js.onerror = () => {
+    document.getElementById('status').textContent = '✗ Erro ao carregar SDK. Verifique a conexão.';
+    document.getElementById('status').className = 'status err';
+  };
+  fjs.parentNode.insertBefore(js, fjs);
+}(document, 'script', 'facebook-jssdk'));
+
+function fbLogin() {
+  document.getElementById('btn-login').disabled = true;
+  document.getElementById('status').textContent = '⏳ Abrindo janela de autorização...';
+  FB.login(resp => {
+    if (resp.authResponse) {
+      document.getElementById('status').textContent = '✓ Autorizado! Buscando token da página...';
+      document.getElementById('status').className = 'status ok';
+      fetchPageToken(resp.authResponse.accessToken);
+    } else {
+      document.getElementById('status').textContent = '✗ Autorização cancelada.';
+      document.getElementById('status').className = 'status err';
+      document.getElementById('btn-login').disabled = false;
+    }
+  }, { scope: 'pages_manage_posts,pages_read_engagement,pages_manage_metadata,pages_messaging,pages_show_list' });
+}
+
+function fetchPageToken(userToken) {
+  // Troca user token por long-lived token e depois pega page token
+  FB.api('/me/accounts', { access_token: userToken }, data => {
+    if (data.error) {
+      document.getElementById('status').textContent = '✗ Erro: ' + data.error.message;
+      document.getElementById('status').className = 'status err';
+      return;
+    }
+    const page = (data.data || []).find(p => p.id === PAGE_ID);
+    if (!page) {
+      const lista = (data.data || []).map(p => p.name + ' (' + p.id + ')').join(', ');
+      document.getElementById('status').textContent =
+        '⚠ Página ' + PAGE_ID + ' não encontrada.\nPáginas disponíveis: ' + (lista || 'nenhuma') +
+        '\nVerifique se você é admin da Página Aura Refúgio.';
+      document.getElementById('status').className = 'status err';
+      // Mostra o primeiro token disponível mesmo assim
+      if (data.data && data.data[0]) showToken(data.data[0].access_token, data.data[0].name);
+      return;
+    }
+    showToken(page.access_token, page.name);
+  });
+}
+
+function showToken(token, pageName) {
+  document.getElementById('status').textContent = '✅ Token obtido para: ' + pageName + '\nPronto para ativar os agentes!';
+  document.getElementById('status').className = 'status ok';
+  document.getElementById('token-val').value = token;
+  document.getElementById('token-section').style.display = 'block';
+  document.getElementById('btn-login').style.display = 'none';
+  // Salva no localStorage para uso posterior
+  localStorage.setItem('fb_page_token_temp', token);
+}
+
+async function sendToBridge() {
+  const token = document.getElementById('token-val').value;
+  const bs = document.getElementById('bridge-status');
+  bs.style.display = 'block';
+  bs.textContent = '⏳ Enviando para o Bridge...';
+  bs.className = 'status';
+  try {
+    const r = await fetch(BRIDGE + '/social/setup-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    });
+    const d = await r.json();
+    if (r.ok) {
+      bs.textContent = '🎉 Agentes ativados!\nPágina: ' + d.page.name + ' (ID: ' + d.page.id + ')\n\nFechando em 3s...';
+      bs.className = 'status ok';
+      localStorage.setItem('fb_page_token', token);
+      setTimeout(() => window.close(), 3000);
+    } else {
+      bs.textContent = '✗ Erro: ' + (d.detail || JSON.stringify(d));
+      bs.className = 'status err';
+    }
+  } catch(e) {
+    bs.textContent = '✗ Bridge offline (' + BRIDGE + ')\n\nCopie o token acima e cole no dashboard → 📣 redes sociais';
+    bs.className = 'status err';
+  }
+}
+</script>
+</body>
+</html>
