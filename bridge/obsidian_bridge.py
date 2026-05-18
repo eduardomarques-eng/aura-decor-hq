@@ -1,5 +1,5 @@
-"""
-AURA Decor — Bridge v3  (FastAPI + SSE + LLM real)
+﻿"""
+AURA Refúgio — Bridge v3  (FastAPI + SSE + LLM real)
 Porta 8001 — terminal do dashboard executa agentes reais via llama3.2
 
 Run: python bridge/obsidian_bridge.py
@@ -32,7 +32,7 @@ AGENTS = {
     "ive": {
         "name": "Ive", "emoji": "👩‍💼", "role": "CEO & Gerente Geral",
         "phase": "sempre",
-        "system": """Você é Ive, CEO da AURA Decor — loja Shopify de decoração Japandi premium.
+        "system": """Você é Ive, CEO da AURA Refúgio — loja Shopify de decoração Japandi premium.
 Você orquestra a equipe, toma decisões estratégicas e responde comandos do Eduardo de forma direta e executiva.
 Equipe atual (fase de lançamento): Kal (produtos), Theo (Shopify), Vera (copy), Luna (design), Echo (auditoria).
 Quando Eduardo der um comando, interprete, decida quem executar e responda com o plano de ação.
@@ -41,7 +41,7 @@ Seja concisa, assertiva, use listas quando útil. Responda em português.""",
     "kal": {
         "name": "Kal", "emoji": "🛍️", "role": "Curador de Produtos",
         "phase": "lancamento",
-        "system": """Você é Kal, curador de produtos da AURA Decor.
+        "system": """Você é Kal, curador de produtos da AURA Refúgio.
 Pesquisa produtos Japandi no AliExpress. Critérios: estética wabi-sabi/japandi, margem >60%, fornecedor ≥4.7★, prazo ≤25 dias.
 Calcule sempre: preço AliExpress × câmbio (R$5.50) × markup (3.5x) = preço sugerido.
 Responda com listas de produtos concretos com preços, margens e fornecedores. Português.""",
@@ -49,7 +49,7 @@ Responda com listas de produtos concretos com preços, margens e fornecedores. P
     "theo": {
         "name": "Theo", "emoji": "⚙️", "role": "Operator Shopify",
         "phase": "lancamento",
-        "system": """Você é Theo, operador técnico da loja AURA Decor no Shopify.
+        "system": """Você é Theo, operador técnico da loja AURA Refúgio no Shopify.
 Cuida de: configuração da loja, produtos, collections, preços, apps, integrações DSers/AliExpress.
 Quando receber tarefa, liste os passos exatos para executar no Shopify admin.
 Formato: passos numerados, direto ao ponto. Português.""",
@@ -57,7 +57,7 @@ Formato: passos numerados, direto ao ponto. Português.""",
     "vera": {
         "name": "Vera", "emoji": "✍️", "role": "Copywriter Afetiva",
         "phase": "lancamento",
-        "system": """Você é Vera, copywriter afetiva da AURA Decor.
+        "system": """Você é Vera, copywriter afetiva da AURA Refúgio.
 Escreve textos que criam conexão emocional + convertem. Estilo: sofisticado, afetivo, Japandi.
 Para produtos: título SEO (60-80 chars) + descrição afetiva (150-200 palavras) + 2 variações de copy de anúncio.
 Voz da marca: "Objetos com intenção. Espaços com alma." Português.""",
@@ -65,7 +65,7 @@ Voz da marca: "Objetos com intenção. Espaços com alma." Português.""",
     "luna": {
         "name": "Luna", "emoji": "🎨", "role": "Designer Visual",
         "phase": "lancamento",
-        "system": """Você é Luna, designer visual da AURA Decor.
+        "system": """Você é Luna, designer visual da AURA Refúgio.
 Especialista em estética Japandi. Trabalha com Canva Pro.
 Quando receber briefing, descreva detalhadamente: composição, paleta (#F8F5F0, #B4945A, #1C1917), tipografia, elementos visuais.
 Entregue especificações prontas para executar no Canva. Português.""",
@@ -73,7 +73,7 @@ Entregue especificações prontas para executar no Canva. Português.""",
     "echo": {
         "name": "Echo", "emoji": "🔍", "role": "Auditor do Sistema",
         "phase": "sempre",
-        "system": """Você é Echo, auditor da AURA Decor.
+        "system": """Você é Echo, auditor da AURA Refúgio.
 Monitora: saúde dos agentes, KPIs da loja, integrações, erros.
 Quando auditando, verifique sistematicamente cada componente e reporte status com ✓/✗/⚠.
 Seja metódico e preciso. Português.""",
@@ -518,7 +518,7 @@ async def analyze_document(path: str, question: str = "Faça um resumo executivo
     except Exception:
         content_trimmed = ""
 
-    prompt = f"""Você é Echo, auditora analítica da AURA Decor. Analise o documento abaixo e responda à solicitação.
+    prompt = f"""Você é Echo, auditora analítica da AURA Refúgio. Analise o documento abaixo e responda à solicitação.
 
 DOCUMENTO: {path}
 CONTEÚDO:
@@ -554,6 +554,215 @@ Responda de forma clara, estruturada e em português. Use bullet points quando �
 
     return StreamingResponse(event_gen(), media_type="text/event-stream",
                              headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
+
+# ══════════════════════════════════════════════════════════════════════════
+# REDES SOCIAIS — Agentes postam com autonomia via Graph API (Facebook Page)
+# ══════════════════════════════════════════════════════════════════════════
+FB_PAGE_ID    = os.getenv("FB_PAGE_ID", "61590017552373")  # Aura Refúgio Page
+FB_PAGE_TOKEN = os.getenv("FB_PAGE_TOKEN", "")
+INSTAGRAM_ID  = os.getenv("INSTAGRAM_BUSINESS_ID", "")
+
+# Token persistido em arquivo local (alternativa ao .env)
+_TOKEN_FILE = PROJECT_DIR / ".fb_token"
+
+def _load_fb_token() -> str:
+    """Carrega token do .env ou arquivo local."""
+    t = os.getenv("FB_PAGE_TOKEN", "")
+    if not t and _TOKEN_FILE.exists():
+        t = _TOKEN_FILE.read_text().strip()
+    return t
+
+def _save_fb_token(token: str):
+    """Salva token localmente para persistir entre restarts."""
+    global FB_PAGE_TOKEN
+    FB_PAGE_TOKEN = token
+    _TOKEN_FILE.write_text(token)
+    os.environ["FB_PAGE_TOKEN"] = token
+
+class SocialPost(BaseModel):
+    message: str
+    agent_id: str = "vera"
+    image_url: Optional[str] = None
+    schedule_time: Optional[str] = None  # ISO timestamp para agendar
+    platform: str = "facebook"           # facebook | instagram | ambos
+
+class SocialComment(BaseModel):
+    post_id: str
+    message: str
+    agent_id: str = "vera"
+
+_social_log: List[Dict] = []
+
+def _log_social(action: str, agent: str, platform: str, details: str, status: str = "ok"):
+    entry = {"ts": ts(), "action": action, "agent": agent, "platform": platform,
+             "details": details, "status": status}
+    _social_log.insert(0, entry)
+    _social_log[:] = _social_log[:200]
+    add_feed("📣", f"{agent.upper()} → {platform}: {details[:60]}", "purple")
+    # Salva no vault
+    log_file = Path(VAULT_ROOT) / "⚙️ Sistema" / "social_log.md"
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    line = f"- [{entry['ts']}] **{agent}** ({platform}) — {action}: {details[:80]} → {status}\n"
+    with open(log_file, "a", encoding="utf-8") as f:
+        f.write(line)
+    return entry
+
+@app.post("/social/post")
+async def social_post(body: SocialPost):
+    """Agente posta texto (+ imagem opcional) no Facebook e/ou Instagram."""
+    if not FB_PAGE_TOKEN:
+        raise HTTPException(503, "FB_PAGE_TOKEN não configurado. Adicione no .env")
+    results = {}
+    async with httpx.AsyncClient(timeout=30) as client:
+        if body.platform in ("facebook", "ambos"):
+            payload = {"message": body.message, "access_token": FB_PAGE_TOKEN}
+            if body.image_url:
+                # Post com imagem
+                r = await client.post(
+                    f"https://graph.facebook.com/v20.0/{FB_PAGE_ID}/photos",
+                    data={**payload, "url": body.image_url, "caption": body.message}
+                )
+            else:
+                r = await client.post(
+                    f"https://graph.facebook.com/v20.0/{FB_PAGE_ID}/feed",
+                    data=payload
+                )
+            data = r.json()
+            results["facebook"] = data
+            _log_social("post", body.agent_id, "Facebook",
+                        body.message[:60], "ok" if "id" in data else f"erro:{data.get('error',{}).get('message','?')}")
+
+        if body.platform in ("instagram", "ambos") and INSTAGRAM_ID:
+            # Instagram Graph API: criar container → publicar
+            async with httpx.AsyncClient(timeout=30) as cl:
+                container = await cl.post(
+                    f"https://graph.facebook.com/v20.0/{INSTAGRAM_ID}/media",
+                    data={"caption": body.message, "image_url": body.image_url or "",
+                          "access_token": FB_PAGE_TOKEN}
+                )
+                cd = container.json()
+                if "id" in cd:
+                    pub = await cl.post(
+                        f"https://graph.facebook.com/v20.0/{INSTAGRAM_ID}/media_publish",
+                        data={"creation_id": cd["id"], "access_token": FB_PAGE_TOKEN}
+                    )
+                    results["instagram"] = pub.json()
+                    _log_social("post", body.agent_id, "Instagram", body.message[:60], "ok")
+    return {"status": "posted", "results": results}
+
+@app.post("/social/comment")
+async def social_comment(body: SocialComment):
+    """Agente responde a um comentário ou post no Facebook."""
+    if not FB_PAGE_TOKEN:
+        raise HTTPException(503, "FB_PAGE_TOKEN não configurado")
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.post(
+            f"https://graph.facebook.com/v20.0/{body.post_id}/comments",
+            data={"message": body.message, "access_token": FB_PAGE_TOKEN}
+        )
+    data = r.json()
+    _log_social("comment", body.agent_id, "Facebook", body.message[:60],
+                "ok" if "id" in data else "erro")
+    return {"status": "commented", "result": data}
+
+@app.get("/social/posts")
+async def list_social_posts(limit: int = 10):
+    """Lista posts recentes da página."""
+    if not FB_PAGE_TOKEN:
+        raise HTTPException(503, "FB_PAGE_TOKEN não configurado")
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.get(
+            f"https://graph.facebook.com/v20.0/{FB_PAGE_ID}/feed",
+            params={"access_token": FB_PAGE_TOKEN, "limit": limit,
+                    "fields": "id,message,created_time,likes.summary(true),comments.summary(true)"}
+        )
+    return r.json()
+
+@app.get("/social/comments/{post_id}")
+async def get_comments(post_id: str):
+    """Lista comentários de um post para os agentes responderem."""
+    if not FB_PAGE_TOKEN:
+        raise HTTPException(503, "FB_PAGE_TOKEN não configurado")
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.get(
+            f"https://graph.facebook.com/v20.0/{post_id}/comments",
+            params={"access_token": FB_PAGE_TOKEN, "fields": "id,from,message,created_time"}
+        )
+    return r.json()
+
+@app.post("/social/generate-and-post")
+async def generate_and_post(body: dict):
+    """Vera gera o copy e posta automaticamente — tudo em um endpoint."""
+    prompt = body.get("prompt", "Crie um post de produto Japandi para a Aura Refúgio")
+    agent_id = body.get("agent_id", "vera")
+    platform = body.get("platform", "facebook")
+    image_url = body.get("image_url")
+
+    # 1. Vera gera o copy via LLM
+    vera_system = AGENTS.get("vera", {}).get("system", "")
+    async with httpx.AsyncClient(timeout=60) as client:
+        r = await client.post(f"{OLLAMA_URL}/api/generate",
+            json={"model": OLLAMA_MODEL, "stream": False,
+                  "system": vera_system,
+                  "prompt": f"Crie um post para Facebook/Instagram da Aura Refúgio sobre: {prompt}. "
+                             f"Máximo 150 palavras. Inclua 3-5 hashtags Japandi no final."})
+    copy_text = r.json().get("response", prompt) if r.status_code == 200 else prompt
+
+    # 2. Posta via Graph API
+    post_body = SocialPost(message=copy_text, agent_id=agent_id,
+                           image_url=image_url, platform=platform)
+    result = await social_post(post_body)
+    return {"copy": copy_text, "post_result": result}
+
+@app.get("/social/log")
+async def social_activity_log():
+    """Histórico de todas as ações dos agentes nas redes sociais."""
+    return {"log": _social_log[:100], "total": len(_social_log)}
+
+@app.post("/social/setup-token")
+async def setup_fb_token(body: dict):
+    """Salva o Page Access Token — chame uma vez via dashboard ou curl."""
+    token = body.get("token", "").strip()
+    if not token:
+        raise HTTPException(400, "Token vazio")
+    _save_fb_token(token)
+    # Valida o token chamando /me
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.get("https://graph.facebook.com/v20.0/me",
+                             params={"access_token": token, "fields": "id,name"})
+    data = r.json()
+    if "error" in data:
+        raise HTTPException(400, f"Token inválido: {data['error'].get('message')}")
+    add_feed("🔑", f"Token FB configurado — Página: {data.get('name','?')} (ID:{data.get('id')})", "green")
+    return {"status": "ok", "page": data}
+
+@app.get("/social/status")
+async def social_status():
+    """Retorna status da integração com redes sociais."""
+    token = _load_fb_token()
+    has_token = bool(token)
+    page_info = {}
+    if has_token:
+        try:
+            async with httpx.AsyncClient(timeout=8) as client:
+                r = await client.get(
+                    f"https://graph.facebook.com/v20.0/{FB_PAGE_ID}",
+                    params={"access_token": token, "fields": "id,name,fan_count,followers_count,link"}
+                )
+            page_info = r.json()
+        except Exception as e:
+            page_info = {"error": str(e)}
+    return {
+        "page_id": FB_PAGE_ID,
+        "page_name": "Aura Refúgio",
+        "has_token": has_token,
+        "token_configured": has_token,
+        "page_info": page_info,
+        "instagram_configured": bool(INSTAGRAM_ID),
+        "agents_authorized": ["ive", "vera", "luna", "echo", "kal"],
+        "endpoints": ["/social/post", "/social/comment", "/social/posts",
+                      "/social/generate-and-post", "/social/log"]
+    }
 
 # ── STARTUP ────────────────────────────────────────────────────────────────
 @app.on_event("startup")

@@ -1,4 +1,4 @@
-# 🏮 AURA Decor — HQ Sistema de Agentes IA
+﻿# 🏮 AURA Refúgio — HQ Sistema de Agentes IA
 
 > *Objetos com intenção. Espaços com alma.*
 
