@@ -1,0 +1,88 @@
+{
+  "name": "AURA — Novo Pedido Shopify → Obsidian + Theo",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "shopify-order",
+        "responseMode": "onReceived"
+      },
+      "id": "webhook-shopify",
+      "name": "Webhook Shopify Order",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8001/ticket/create",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "channel", "value": "shopify" },
+            { "name": "customer_name", "value": "={{$json.customer.first_name}} {{$json.customer.last_name}}" },
+            { "name": "customer_email", "value": "={{$json.customer.email}}" },
+            { "name": "message", "value": "Pedido #={{$json.order_number}} — R$ ={{$json.total_price}}" },
+            { "name": "order_id", "value": "={{$json.order_number}}" }
+          ]
+        }
+      },
+      "id": "create-ticket",
+      "name": "Criar Ticket no Obsidian",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [500, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8001/command",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "command", "value": "@theo processar pedido #={{$json.order_number}} — cliente: ={{$json.customer.first_name}} — R$={{$json.total_price}}" },
+            { "name": "user", "value": "n8n-shopify-webhook" }
+          ]
+        }
+      },
+      "id": "notify-theo",
+      "name": "Notificar Theo (Processamento)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [500, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8001/feed",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "icon", "value": "📦" },
+            { "name": "text", "value": "Novo pedido #={{$json.order_number}} — R$={{$json.total_price}} — ={{$json.customer.first_name}}" },
+            { "name": "color", "value": "green" }
+          ]
+        }
+      },
+      "id": "update-feed",
+      "name": "Atualizar Feed Dashboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [750, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Shopify Order": {
+      "main": [[{ "node": "Criar Ticket no Obsidian", "type": "main", "index": 0 }, { "node": "Notificar Theo (Processamento)", "type": "main", "index": 0 }]]
+    },
+    "Criar Ticket no Obsidian": {
+      "main": [[{ "node": "Atualizar Feed Dashboard", "type": "main", "index": 0 }]]
+    },
+    "Notificar Theo (Processamento)": {
+      "main": [[{ "node": "Atualizar Feed Dashboard", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": true,
+  "settings": { "executionOrder": "v1" }
+}

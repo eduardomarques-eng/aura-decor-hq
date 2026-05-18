@@ -1,0 +1,31 @@
+tarefa_conceito:
+  description: >
+    Com base no briefing do cliente {cliente}, crie um conceito de design
+    de interiores. Inclua: estilo predominante, paleta de cores, materiais
+    recomendados e referências de inspiração.
+  expected_output: >
+    Um documento de conceito com estilo, paleta de cores (5 tons),
+    materiais principais e 3 referências visuais descritas textualmente.
+  agent: consultor_design
+
+tarefa_orcamento:
+  description: >
+    Com base no conceito criado para {cliente}, elabore um orçamento
+    estimado discriminando: móveis, revestimentos, iluminação, mão de obra
+    e acabamentos. Indique faixas de valores (econômico / médio / premium).
+  expected_output: >
+    Planilha de orçamento textual com itens, quantidades estimadas e
+    três faixas de preço (econômico, médio, premium).
+  agent: orcamentista
+
+tarefa_proposta:
+  description: >
+    Usando o conceito e o orçamento desenvolvidos para {cliente}, redija
+    uma proposta comercial completa e profissional da Aura Decor.
+    Inclua apresentação da empresa, escopo do projeto, cronograma e
+    condições de pagamento.
+  expected_output: >
+    Proposta comercial completa em Markdown, pronta para enviar ao cliente
+    {cliente}, com tom sofisticado e linguagem acessível.
+  agent: redator_proposta
+  output_file: proposta_{cliente}.md

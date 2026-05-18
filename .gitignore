@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Env / secrets
+.env
+*.env
+
+# DB
+aura.db
+*.db
+
+# Logs
+*.log
+output/
+bridge/bridge.log
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Obsidian (vault local — não sobe)
+"Obsidian Vault"/

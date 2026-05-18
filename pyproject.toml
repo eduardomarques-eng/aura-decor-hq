@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "meu_primeiro_time"
+version = "0.1.0"
+description = "Equipe Aura Decor — propostas de design de interiores com CrewAI"
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "crewai[tools]>=1.0.0",
+]
+
+[project.scripts]
+aura_decor = "meu_primeiro_time.main:run"
+
+[tool.setuptools.packages.find]
+where = ["src"]

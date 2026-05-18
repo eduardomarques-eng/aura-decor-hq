@@ -1,0 +1,58 @@
+{
+  "name": "AURA — Auditoria Semanal (Domingo 20h) — Echo",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "cronExpression", "expression": "0 20 * * 0" }] }
+      },
+      "id": "cron-sunday",
+      "name": "Todo Domingo 20h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8001/command",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "command", "value": "@echo iniciar auditoria semanal completa — verificar todos os agentes, KPIs, integrações e sistemas" },
+            { "name": "user", "value": "n8n-scheduler" }
+          ]
+        }
+      },
+      "id": "trigger-echo",
+      "name": "Acionar Echo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8001/feed",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "icon", "value": "🔍" },
+            { "name": "text", "value": "Auditoria semanal iniciada por Echo — domingo 20h" },
+            { "name": "color", "value": "green" }
+          ]
+        }
+      },
+      "id": "feed-audit",
+      "name": "Feed: Auditoria Iniciada",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [750, 300]
+    }
+  ],
+  "connections": {
+    "Todo Domingo 20h": { "main": [[{ "node": "Acionar Echo", "type": "main", "index": 0 }]] },
+    "Acionar Echo": { "main": [[{ "node": "Feed: Auditoria Iniciada", "type": "main", "index": 0 }]] }
+  },
+  "active": true,
+  "settings": { "executionOrder": "v1" }
+}

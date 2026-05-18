@@ -1,0 +1,78 @@
+{
+  "name": "AURA — Sync Estoque AliExpress Diário 7h — Theo + Kal",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "cronExpression", "expression": "0 7 * * *" }] }
+      },
+      "id": "cron-7am",
+      "name": "Todo dia às 7h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8001/command",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "command", "value": "@theo sincronizar preços e estoque de todos os produtos com fornecedores AliExpress via DSers" },
+            { "name": "user", "value": "n8n-scheduler" }
+          ]
+        }
+      },
+      "id": "trigger-theo",
+      "name": "Acionar Theo Sync",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [500, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8001/command",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "command", "value": "@kal verificar novos produtos candidatos AliExpress — decoração japandi minimalista" },
+            { "name": "user", "value": "n8n-scheduler" }
+          ]
+        }
+      },
+      "id": "trigger-kal",
+      "name": "Acionar Kal Pesquisa",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [500, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8001/feed",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "icon", "value": "🔄" },
+            { "name": "text", "value": "Sync diário AliExpress iniciado — Theo (estoque) + Kal (curadoria)" },
+            { "name": "color", "value": "blue" }
+          ]
+        }
+      },
+      "id": "feed-sync",
+      "name": "Feed: Sync Iniciado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [750, 300]
+    }
+  ],
+  "connections": {
+    "Todo dia às 7h": {
+      "main": [[{ "node": "Acionar Theo Sync", "type": "main", "index": 0 }, { "node": "Acionar Kal Pesquisa", "type": "main", "index": 0 }]]
+    },
+    "Acionar Theo Sync": { "main": [[{ "node": "Feed: Sync Iniciado", "type": "main", "index": 0 }]] }
+  },
+  "active": true,
+  "settings": { "executionOrder": "v1" }
+}

@@ -1,0 +1,58 @@
+{
+  "name": "AURA — Relatório KPI Diário 18h — Ive",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "cronExpression", "expression": "0 18 * * 1-5" }] }
+      },
+      "id": "cron-daily",
+      "name": "Seg-Sex às 18h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8001/command",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "command", "value": "gerar relatório KPI do dia — consolidar métricas de todos os agentes e salvar no Obsidian" },
+            { "name": "user", "value": "n8n-scheduler" }
+          ]
+        }
+      },
+      "id": "trigger-ive",
+      "name": "Acionar Ive para KPI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8001/feed",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "icon", "value": "📊" },
+            { "name": "text", "value": "Relatório KPI diário sendo gerado por Ive" },
+            { "name": "color", "value": "gold" }
+          ]
+        }
+      },
+      "id": "feed-kpi",
+      "name": "Feed: KPI Diário",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [750, 300]
+    }
+  ],
+  "connections": {
+    "Seg-Sex às 18h": { "main": [[{ "node": "Acionar Ive para KPI", "type": "main", "index": 0 }]] },
+    "Acionar Ive para KPI": { "main": [[{ "node": "Feed: KPI Diário", "type": "main", "index": 0 }]] }
+  },
+  "active": true,
+  "settings": { "executionOrder": "v1" }
+}
